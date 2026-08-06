@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Gmail Link Scanner — Options</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px; }
+      textarea { width: 100%; height: 120px; font-family: monospace; box-sizing: border-box; }
+      section { margin-bottom: 24px; }
+      label { display: block; font-weight: 600; margin-bottom: 4px; }
+      .hint { color: #666; font-size: 0.9em; margin: 4px 0 8px; }
+      #status { margin-left: 8px; }
+    </style>
+  </head>
+  <body>
+    <h2>Gmail Link Scanner — Settings</h2>
+
+    <section>
+      <label for="key">VirusTotal API key</label>
+      <p class="hint">Stored in Chrome Sync storage. Get a free key at virustotal.com.</p>
+      <input id="key" type="password" placeholder="VT API key" style="width: 420px" />
+    </section>
+
+    <section>
+      <label for="allowList">Allowed domains</label>
+      <p class="hint">One domain per line, e.g. example.com. These are always treated as safe and never sent to VirusTotal. Subdomains are matched automatically.</p>
+      <textarea id="allowList" placeholder="example.com"></textarea>
+    </section>
+
+    <section>
+      <label for="denyList">Blocked domains</label>
+      <p class="hint">One domain per line. These are always flagged as malicious without calling VirusTotal.</p>
+      <textarea id="denyList" placeholder="malicious-example.com"></textarea>
+    </section>
+
+    <button id="save">Save</button>
+    <span id="status"></span>
+
+    <script src="options.js"></script>
+  </body>
+</html>

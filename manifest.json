@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Gmail Link Scanner (VirusTotal)",
+  "version": "1.1.0",
+  "description": "Scans links in Gmail via VirusTotal and warns users before navigating to malicious sites.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://www.virustotal.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
