@@ -2,6 +2,12 @@
 
 A Chrome extension (Manifest V3) that scans links inside Gmail messages against [VirusTotal](https://www.virustotal.com/) and warns you before you navigate to a flagged site.
 
+## Screenshot
+
+![The extension's settings page: VirusTotal API key, allowed domains and blocked domains](docs/screenshots/options.png)
+
+*The settings page. In Gmail itself, flagged links get a red (malicious) or amber (suspicious) outline.*
+
 ## Description
 
 Phishing and malware links are often hidden behind innocuous-looking anchor text in emails. This extension inspects every link rendered inside Gmail, checks it against VirusTotal's multi-engine URL analysis, and visually flags anything suspicious. If you click a link that has been (or turns out to be) flagged as malicious, the extension blocks the navigation and asks you to confirm before proceeding.
