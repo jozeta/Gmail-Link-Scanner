@@ -4,47 +4,72 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Chromium extension (Manifest V3; Chrome and Edge) that scans links in Gmail messages with VirusTotal, outlines
-malicious (red) or suspicious (amber) links, and asks for confirmation before opening anything
+A Chromium extension (Manifest V3; Chrome and Edge) that checks links in Gmail messages with
+VirusTotal and local phishing heuristics, outlines malicious (red), suspicious (amber) or
+misleading (amber dashed) links, and shows an in-page warning panel before opening anything
 flagged or unverified. Plain JS, no build step, no dependencies.
 
 ## Running
 
 1. `chrome://extensions` (or `edge://extensions`) → Developer mode → **Load unpacked** → this folder.
-2. Extension options → paste a VirusTotal API key (free tier), optionally allow/deny domains.
+2. Extension options → paste a VirusTotal API key (free tier), **Test key**, pick a scan mode.
 3. Open Gmail. After editing code, click **Reload** on the extension card and refresh Gmail.
 
-There is no automated test suite. Debug the content script in Gmail's DevTools and the service
-worker via "Inspect views: service worker" on the extension card.
+Debug the content script in Gmail's DevTools and the service worker via "Inspect views: service
+worker" on the extension card.
+
+## Tests
+
+No dependencies; Node 22+.
+
+- `node --test tests/` — background logic (fake clock, fake `chrome`, fake VirusTotal; loaded with
+  `vm` from `tests/helpers/load-background.js`), heuristics, domain lists.
+- `node tests/run-content-tests.js` — `tests/content/index.html` + `page-tests.js` in headless
+  Edge/Chrome over the DevTools protocol (real time; `--virtual-time-budget` doesn't render frames,
+  so `IntersectionObserver` never fires with it). The page opens the panel's closed shadow root by
+  patching `attachShadow`.
+- `node tests/run-extension-smoke.js` — loads the real extension (Edge/Chromium only; Chrome
+  ignores `--load-extension`) and checks the service worker, options page and popup.
+
+Run all three after changes. Browser-only test files must not be named `test.js` (`node --test`
+would pick them up).
 
 ## Architecture
 
-- **`contentScript.js`** (on `mail.google.com`): scans external http(s) `<a href>` links inside
-  message bodies (`MESSAGE_BODY_SELECTOR = '.a3s'`) with bounded concurrency (4), decorates them
-  (`markLink`), and intercepts `click` and middle-button `auxclick` on *every* external link in the
-  capture phase: anything not verified clean or allow-listed for its current `href` is held until
-  its check resolves (local 30 s fail-safe), with `confirm()` before opening risky links via
-  `window.open(href, '_blank', 'noopener,noreferrer')`. Verdicts live in the `linkState` WeakMap
-  (keyed by element, storing the checked `href`); `data-vt-flag` is written for DevTools only and
-  must never be read back, because email HTML could set it. A `MutationObserver` catches new links
-  and `href` changes. Same-origin (Gmail) links are ignored. `pendingChecks` de-dupes in-flight checks.
-- **`background.js`** (service worker): handles `checkUrl` messages; builds the redirect chain
-  (`redirectChain`: `google.com/url?q=`, `url=`/`u=`/`redirect=`…, max 3 hops, deeper fails
-  closed). Every hop except the trusted `google.com/url` wrapper is checked (deny list → allow
-  list → VirusTotal, sequentially) and the worst verdict wins, so a malicious wrapper can't hide
-  behind a clean destination. Per URL (`scanUrl`): the
-  `chrome.storage.local` cache (24 h verdicts, 5 min for retryable errors); otherwise
-  `POST /api/v3/urls`, polls `GET /api/v3/analyses/{id}` (10 × 1.5 s), falls back to
-  `GET /api/v3/urls/{id}` (unpadded base64url). Returns
-  `{ ok, malicious, suspicious, maliciousCount, suspiciousCount, resolvedUrl, flaggedUrl?, listed? }`.
-- **`options.html` / `options.js`**: API key and allow/deny lists in `chrome.storage.sync`.
+- **`contentScript.js`** (+ **`heuristics.js`**, same isolated world, exposes `LinkHeuristics`):
+  only links inside message bodies (`MESSAGE_BODY_SELECTOR = '.a3s'`) are scanned or intercepted;
+  Gmail's interface and same-origin links are left alone. Scan modes (`scanMode` in sync storage):
+  `visible` (IntersectionObserver), `all` (everything at once, 16 in flight), `click` (none).
+  Mutations are batched. Verdicts live in the `linkState` WeakMap with the checked `href`;
+  `data-vt-flag` is for DevTools only and must never be read back (emails could set it). `click`
+  and middle-button `auxclick` are intercepted in the capture phase; the warning `panel` is a
+  closed shadow root. Clean results auto-open only while `navigator.userActivation.isActive`,
+  otherwise the panel asks for one more click (popup blocking). Sends `flagCount` for the badge and
+  answers `getPageSummary` for the popup.
+- **`background.js`** (service worker): `redirectChain` (max 3 hops, deeper fails closed); every hop
+  except the trusted `google.com/url` wrapper is checked (deny → allow → VirusTotal, sequentially),
+  worst verdict wins. `scanUrl`: `normalizeForScan` (drops fragments and tracking params) → cache
+  (24 h, 5 min for retryable errors) → in-flight de-dupe → `fetchFromVirusTotal`: `GET /urls/{id}`
+  first (reused if fresh ≤ 7 days, or flagged at any age), else `POST /urls` + polls with
+  `POLL_DELAYS_MS`. Every request goes through `vtRequest` → `acquireSlot`: one priority queue
+  (click 0, scan 1; priority is raised if a click hits a queued URL), per-minute and per-day limits
+  from settings (defaults 4/500), state persisted in `storage.session`/`storage.local`, 60 s pause
+  after a 429, keep-alive while busy. Messages: `checkUrl`, `flagCount`, `openOptions` from content
+  scripts; `getStatus`, `clearCache`, `testKey` only from extension pages (`isExtensionPage` checks
+  the sender URL — the options page runs in a tab, so `sender.tab` can't be used).
+- **`popup.html` / `popup.js`**: request budget, flagged links in the active tab, recent checks,
+  clear cache. **`options.html` / `options.js` / `domains.js`** (`DomainLists`): settings,
+  validated lists, JSON export/import.
 - `chrome_extension_gmail_link_scanner.md`: the original design spec.
 
 ## Rules
 
-- **Fail closed:** errors, timeouts and rate limits must never mark a link clean.
+- **Fail closed:** errors, timeouts, rate limits and quota exhaustion must never mark a link clean.
+- **Only email content:** never scan or intercept links outside message bodies.
 - Keep permissions minimal: `storage` plus host permissions for `mail.google.com` and
   `www.virustotal.com` only. Don't add `tabs`, `scripting` or `activeTab`.
-- Respect the VirusTotal free-tier limits (4 requests/min, 500/day): keep caching and de-duping.
+- Respect the VirusTotal free-tier limits by default (4 requests/min, 500/day): every request goes
+  through the rate limiter; keep caching and de-duping.
 - Never log or hard-code an API key. Never send link data anywhere except VirusTotal.
+- Untrusted input (link text, URLs, imported files) is only ever rendered with `textContent`.
 - Bump `version` in `manifest.json` for releases.

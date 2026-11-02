@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Gmail Link Scanner</title>
+    <style>
+      :root {
+        --bg: #ffffff; --fg: #1d2329; --muted: #5b6b7a; --border: #dde3e8; --track: #e8edf1; --button: #f4f6f8;
+        --accent: #1a73e8; --danger: #c9302c; --warn: #b26a00; --ok: #2e7d32;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #181c20; --fg: #e6eaee; --muted: #9aa7b3; --border: #343d46; --track: #2c343c; --button: #2c343c;
+          --accent: #8ab4f8; --danger: #ff8a80; --warn: #ffb74d; --ok: #81c784;
+        }
+      }
+      body { margin: 0; width: 380px; font: 13px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+      header { padding: 12px 14px 8px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
+      header img { width: 20px; height: 20px; }
+      header h1 { font-size: 14px; margin: 0; flex: 1; }
+      section { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+      h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 6px; }
+      .meter { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
+      .meter div { height: 100%; background: var(--accent); }
+      .meter.high div { background: var(--danger); }
+      .stats { display: flex; justify-content: space-between; color: var(--muted); }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li { padding: 5px 0; border-top: 1px solid var(--border); }
+      li:first-child { border-top: 0; }
+      .line { display: flex; gap: 6px; align-items: baseline; }
+      .url { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; word-break: break-all; flex: 1; }
+      .text { font-weight: 600; }
+      .note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+      .pill { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; }
+      .pill.malicious, .pill.blocked, .pill.error { color: var(--danger); }
+      .pill.suspicious, .pill.misleading { color: var(--warn); }
+      .pill.clean, .pill.allowed { color: var(--ok); }
+      .empty { color: var(--muted); }
+      .alert { color: var(--danger); }
+      footer { padding: 10px 14px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+      footer span { flex: 1; color: var(--muted); }
+      button { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--button);
+        color: var(--fg); cursor: pointer; }
+      #recent { max-height: 180px; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="icon48.png" alt="" />
+      <h1>Gmail Link Scanner</h1>
+    </header>
+
+    <section>
+      <h2>VirusTotal requests</h2>
+      <div class="stats"><span id="today"></span><span id="minute"></span></div>
+      <div class="meter" id="meter"><div id="meterFill" style="width: 0"></div></div>
+      <div class="note" id="queue"></div>
+    </section>
+
+    <section>
+      <h2>Open email</h2>
+      <div id="page" class="empty">Loading…</div>
+    </section>
+
+    <section>
+      <h2>Recent checks</h2>
+      <ul id="recent"></ul>
+    </section>
+
+    <footer>
+      <span id="footerStatus" role="status"></span>
+      <button id="clearCache" type="button">Clear cache</button>
+      <button id="settings" type="button">Settings</button>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

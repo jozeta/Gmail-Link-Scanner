@@ -2,14 +2,45 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Gmail Link Scanner — Options</title>
     <style>
-      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px; }
-      textarea { width: 100%; height: 120px; font-family: monospace; box-sizing: border-box; }
-      section { margin-bottom: 24px; }
-      label { display: block; font-weight: 600; margin-bottom: 4px; }
-      .hint { color: #666; font-size: 0.9em; margin: 4px 0 8px; }
-      #status { margin-left: 8px; }
+      :root {
+        --bg: #ffffff; --fg: #1d2329; --muted: #5b6b7a; --border: #c9d1d9; --field: #ffffff;
+        --accent: #1a73e8; --ok: #2e7d32; --error: #c62828; --button: #f4f6f8;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #181c20; --fg: #e6eaee; --muted: #9aa7b3; --border: #3a444e; --field: #20262c;
+          --accent: #8ab4f8; --ok: #81c784; --error: #ff8a80; --button: #2c343c;
+        }
+      }
+      body { font-family: system-ui, sans-serif; max-width: 680px; margin: 24px auto; padding: 0 16px;
+        background: var(--bg); color: var(--fg); line-height: 1.45; }
+      h2 { margin-bottom: 20px; }
+      section { margin-bottom: 28px; }
+      h3 { font-size: 1em; margin: 0 0 4px; }
+      label { font-weight: 600; }
+      .hint { color: var(--muted); font-size: 0.9em; margin: 4px 0 8px; }
+      input[type="password"], input[type="number"], textarea { background: var(--field); color: var(--fg);
+        border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; box-sizing: border-box; }
+      input[type="password"] { width: min(440px, 100%); }
+      input[type="number"] { width: 110px; }
+      textarea { width: 100%; height: 120px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+        background: var(--button); color: var(--fg); cursor: pointer; }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      @media (prefers-color-scheme: dark) { button.primary { color: #10161c; } }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .choice { display: block; margin: 6px 0; font-weight: normal; }
+      .choice input { margin-right: 6px; }
+      .choice span { color: var(--muted); font-size: 0.9em; display: block; margin-left: 24px; }
+      .limits { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
+      .limits label { font-weight: normal; display: flex; flex-direction: column; gap: 4px; }
+      .status { min-height: 1.4em; }
+      .status.ok { color: var(--ok); }
+      .status.error { color: var(--error); }
+      .sticky { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; border-top: 1px solid var(--border); }
     </style>
   </head>
   <body>
@@ -17,25 +48,55 @@
 
     <section>
       <label for="key">VirusTotal API key</label>
-      <p class="hint">Stored in Chrome Sync storage. Get a free key at virustotal.com.</p>
-      <input id="key" type="password" placeholder="VT API key" style="width: 420px" />
+      <p class="hint">Stored in Chrome sync storage and only ever sent to VirusTotal. Get a free key at virustotal.com.</p>
+      <div class="row">
+        <input id="key" type="password" placeholder="VT API key" autocomplete="off" spellcheck="false" />
+        <button id="testKey" type="button">Test key</button>
+      </div>
+      <p id="keyStatus" class="status" role="status"></p>
+    </section>
+
+    <section>
+      <h3>Scanning</h3>
+      <p class="hint">Only links inside email messages are checked, never links in Gmail's own interface.</p>
+      <label class="choice"><input type="radio" name="scanMode" value="visible" />Scan links as they come into view
+        <span>Recommended for a free API key: long threads don't use up the quota on links you never see.</span></label>
+      <label class="choice"><input type="radio" name="scanMode" value="all" />Scan every link in an opened email at once, in parallel
+        <span>Fastest when your key allows many requests per minute. On a free key VirusTotal still only answers 4 requests a minute.</span></label>
+      <label class="choice"><input type="radio" name="scanMode" value="click" />Only check a link when I click it
+        <span>Uses the least quota. No outlines until you click.</span></label>
+
+      <div class="limits">
+        <label>Requests per minute <input id="requestsPerMinute" type="number" min="1" max="1000" step="1" /></label>
+        <label>Requests per day <input id="requestsPerDay" type="number" min="1" max="10000000" step="1" /></label>
+      </div>
+      <p class="hint">Free tier: 4 per minute and 500 per day. Raise these only if your VirusTotal plan allows more.</p>
     </section>
 
     <section>
       <label for="allowList">Allowed domains</label>
-      <p class="hint">One domain per line, e.g. example.com. These are always treated as safe and never sent to VirusTotal. Subdomains are matched automatically.</p>
-      <textarea id="allowList" placeholder="example.com"></textarea>
+      <p class="hint">One domain per line, e.g. example.com. These are treated as safe and never sent to VirusTotal. Subdomains match automatically. Lines starting with # are ignored.</p>
+      <textarea id="allowList" placeholder="example.com" spellcheck="false"></textarea>
     </section>
 
     <section>
       <label for="denyList">Blocked domains</label>
       <p class="hint">One domain per line. These are always flagged as malicious without calling VirusTotal.</p>
-      <textarea id="denyList" placeholder="malicious-example.com"></textarea>
+      <textarea id="denyList" placeholder="malicious-example.com" spellcheck="false"></textarea>
+      <div class="row" style="margin-top: 8px">
+        <button id="export" type="button">Export lists…</button>
+        <button id="import" type="button">Import lists…</button>
+        <input id="importFile" type="file" accept="application/json,.json" hidden />
+      </div>
+      <p id="listStatus" class="status" role="status"></p>
     </section>
 
-    <button id="save">Save</button>
-    <span id="status"></span>
+    <div class="sticky row">
+      <button id="save" class="primary" type="button">Save</button>
+      <span id="status" class="status" role="status"></span>
+    </div>
 
+    <script src="domains.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

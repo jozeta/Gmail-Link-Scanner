@@ -6,6 +6,42 @@ Releases follow the project's git tags. The 1.1.0 entry was reconstructed from t
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-02
+
+### Added
+
+- In-page warning panel instead of the browser's `confirm()` dialog: shows the VirusTotal counts,
+  the reasons and the real destination, with *Open anyway* / *Cancel* (Escape cancels). Opening
+  from the panel is a real click, so the new tab is no longer blocked as a popup after a slow check.
+- Local phishing heuristics (`heuristics.js`, no network): link text that shows a different domain
+  than the link goes to, look-alike international characters (accented Latin such as å/ä/ö is
+  fine), typosquats of well-known and allow-listed domains, and real domains used as subdomains.
+  Such links get an amber dashed outline and a warning on click.
+- Shows where a link finally ends up (VirusTotal's `last_final_url`), e.g. behind URL shorteners.
+- Scan modes: links as they come into view (default), every link in an opened email at once in
+  parallel, or only when clicked.
+- Configurable request limits per minute and per day, for premium VirusTotal keys.
+- Toolbar popup: today's request budget and queue, flagged links in the open email, recent checks,
+  *Clear cache*, and a warning when an email is open but its message body can't be found. The
+  badge shows the number of flagged links in the open email.
+- Settings: *Test key* button, domain validation, and JSON export/import of the allow/deny lists
+  (imports are validated as untrusted input).
+- Tests: `node --test tests/` (background, heuristics, domain lists), a headless-browser test for
+  the content script, and a smoke test that loads the real extension.
+
+### Changed
+
+- Only links inside email message bodies are scanned **and intercepted**; Gmail's own interface
+  is no longer touched at all.
+- VirusTotal lookups fetch the existing report first (one request) and only submit a new scan for
+  unknown URLs or clean reports older than 7 days. Polling uses 4 polls with growing gaps instead
+  of 10 polls 1.5 s apart.
+- All VirusTotal requests go through one rate limiter (4/min and 500/day by default) with clicks
+  ahead of background scans, a pause after an unexpected 429, and a service-worker keep-alive.
+- Tracking parameters (`utm_*`, `fbclid`, `mc_eid`…) and fragments are stripped before a URL is
+  looked up or cached.
+- Links are scanned in batches as Gmail adds content, instead of once per added DOM node.
+
 ### Security
 
 - Redirect wrappers can no longer make a malicious link look clean. Previously a link such as
@@ -22,16 +58,16 @@ Releases follow the project's git tags. The 1.1.0 entry was reconstructed from t
 
 ### Fixed
 
-- Links are only scanned on load inside email message bodies, so Gmail's own interface no
-  longer uses up the VirusTotal quota. Links elsewhere are still checked when clicked, and links
-  back into Gmail itself are ignored.
+- Gmail's own interface links no longer use up the VirusTotal quota (see *Changed*: only links
+  in email message bodies are scanned).
 - The VirusTotal URL-id fallback no longer fails on addresses with characters outside Latin-1
   (it now encodes the URL as UTF-8 before base64url).
 
 ### Docs
 
-- README and CLAUDE.md describe the new behaviour, mention Microsoft Edge, and list the opening
-  methods that can't be intercepted (context-menu *Open in new tab*, dragging a link).
+- README and CLAUDE.md describe the new behaviour, mention Microsoft Edge, document the tests,
+  and list the opening methods that can't be intercepted (context-menu *Open in new tab*,
+  dragging a link). New screenshots of the warning panel, popup and settings (demo data).
 
 ## [1.1.0] - 2026-11-02
 

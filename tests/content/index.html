@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- Content-script test page. Run with tests/run-content-tests.sh (headless Edge/Chrome). -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Content script test</title>
+<script>
+  // Test hooks, set up before the extension's scripts load.
+  window.T = {calls: [], opened: [], messages: [], outstanding: 0, peak: 0, shadow: null, events: [],
+    syncData: {scanMode: 'visible', allowList: []}, onChanged: null, onMessage: null, openOptions: false};
+
+  // Open the panel's closed shadow root so the test can inspect it.
+  const attachShadow = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function (init) {
+    T.shadow = attachShadow.call(this, {...init, mode: 'open'});
+    return T.shadow;
+  };
+
+  function fakeVerdict(url) {
+    if (url.includes('nokey')) return {ok: false, error: 'no_api_key', resolvedUrl: url};
+    const malicious = url.includes('bad');
+    const suspicious = url.includes('sus');
+    return {ok: true, malicious, suspicious, maliciousCount: malicious ? 7 : 0, suspiciousCount: suspicious ? 2 : 0, resolvedUrl: url};
+  }
+
+  window.chrome = {
+    runtime: {
+      id: 'test-extension',
+      lastError: undefined,
+      sendMessage(message, callback) {
+        T.messages.push(message);
+        if (message.type === 'openOptions') T.openOptions = true;
+        if (message.type !== 'checkUrl') { if (callback) setTimeout(() => callback(undefined), 0); return; }
+        T.calls.push({url: message.url, priority: message.priority});
+        T.outstanding++;
+        T.peak = Math.max(T.peak, T.outstanding);
+        setTimeout(() => { T.outstanding--; callback(fakeVerdict(message.url)); }, message.url.includes('slow') ? 300 : 60);
+      },
+      onMessage: {addListener(fn) { T.onMessage = fn; }}
+    },
+    storage: {
+      sync: {get: async (keys) => Object.fromEntries(keys.filter((k) => k in T.syncData).map((k) => [k, T.syncData[k]]))},
+      onChanged: {addListener(fn) { T.onChanged = fn; }}
+    }
+  };
+  window.open = (url) => { T.opened.push(url); };
+
+  // Bubble-phase recorder: runs only if the extension did not stop the event.
+  for (const type of ['click', 'auxclick']) {
+    window.addEventListener(type, (ev) => {
+      T.events.push({type, id: ev.target.id, prevented: ev.defaultPrevented});
+      ev.preventDefault(); // never actually navigate the test page
+    });
+  }
+</script>
+</head>
+<body>
+  <div class="a3s" id="body1">
+    <p><a id="clean" href="https://clean.example/">Clean link</a></p>
+    <p><a id="bad" href="https://bad.example/">Bad link</a></p>
+    <p><a id="phish" href="https://evil-login.example/">www.paypal.com</a></p>
+    <p><a id="nokey" href="https://nokey.example/">Unverifiable link</a></p>
+    <div style="height: 4000px"></div>
+    <p><a id="far" href="https://far.example/">Far down the email</a></p>
+  </div>
+  <nav><a id="ui" href="https://ui.example/">Gmail interface link</a> <a id="self" href="/mail/u/0/#inbox">Inbox</a></nav>
+  <div id="later"></div>
+
+  <script src="../../heuristics.js"></script>
+  <script src="../../contentScript.js"></script>
+  <script src="page-tests.js"></script>
+</body>
+</html>
