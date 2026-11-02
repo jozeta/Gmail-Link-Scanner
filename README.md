@@ -1,6 +1,6 @@
 # Gmail Link Scanner (VirusTotal)
 
-A Chrome extension (Manifest V3) that scans links inside Gmail messages against [VirusTotal](https://www.virustotal.com/) and warns you before you navigate to a flagged site.
+A Chromium extension (Manifest V3, works in Chrome and Microsoft Edge) that scans links inside Gmail messages against [VirusTotal](https://www.virustotal.com/) and warns you before you navigate to a flagged site.
 
 ## Screenshot
 
@@ -15,14 +15,15 @@ Phishing and malware links are often hidden behind innocuous-looking anchor text
 ## Features
 
 - **Parallel scanning** — links in an open Gmail message are checked against VirusTotal concurrently (up to 4 at a time), instead of one at a time.
-- **Redirect unwrapping** — Gmail/Google click-tracking wrapper links (`google.com/url?q=...`) and other common query-param redirectors are unwrapped to their real destination before scanning, so the actual target site gets checked, not the wrapper.
+- **Redirect unwrapping** — Gmail/Google click-tracking wrapper links (`google.com/url?q=...`) and other common query-param redirectors are unwrapped to their real destination. Every address in the chain is checked, not just the last one: the wrapper itself is scanned too (except Google's own `google.com/url`), and the link gets the worst verdict of any of them. A malicious host can't pass as clean by putting a harmless URL in its `?u=` parameter.
 - **Malicious + suspicious flagging** — links get a red (malicious) or amber (suspicious) outline and an updated tooltip based on VirusTotal's per-engine verdicts, including the malicious/suspicious engine counts.
 - **Allow/deny domain lists** — trust specific domains (skipped entirely, never sent to VirusTotal) or always block specific domains (flagged without an API call), configurable from the options page.
-- **Click interception with no unchecked gap** — a click on any link that isn't already verified clean is intercepted and checked before navigating, including links still mid-scan in the background, so there's no timing window where a click slips through unchecked.
+- **Click interception with no unchecked gap** — a click on any link that isn't already verified clean is intercepted and checked before navigating, including links still mid-scan in the background, so there's no timing window where a click slips through unchecked. This covers left clicks, Ctrl/Cmd/Shift-clicks, Enter and middle-clicks. A verdict only applies to the exact address that was checked: if a link's `href` changes afterwards, it is treated as unchecked and scanned again.
 - **Fail-safe on errors** — if a check can't be completed (no API key, network error, rate limit, timeout), you get an explicit warning dialog instead of the link silently opening.
 - **Local caching** — successful results are cached in `chrome.storage.local` for 24 hours; transient errors are negatively cached for 5 minutes to avoid hammering a failing/rate-limited API. Expired entries are pruned opportunistically so the cache doesn't grow unbounded.
 - **In-flight request de-duplication** — concurrent checks for the same URL (e.g. two links pointing at the same site, or a click racing an auto-scan) share a single VirusTotal lookup instead of issuing duplicate requests.
-- **Dynamic content support** — a `MutationObserver` watches Gmail's DOM so links in newly loaded threads/messages are scanned as they appear.
+- **Message bodies only** — links are scanned on load only inside email message bodies, so Gmail's own interface doesn't use up your VirusTotal quota. Links elsewhere are still checked when you click them.
+- **Dynamic content support** — a `MutationObserver` watches Gmail's DOM so links in newly loaded threads/messages are scanned as they appear, and links whose address changes are re-scanned.
 - **Bring your own API key** — your VirusTotal API key is stored via `chrome.storage.sync` and never leaves your browser except to talk to VirusTotal directly.
 
 ## How it works
@@ -30,20 +31,22 @@ Phishing and malware links are often hidden behind innocuous-looking anchor text
 The extension has three main parts:
 
 1. **`contentScript.js`** (runs on `mail.google.com`)
-   - Scans the DOM for `<a href>` elements pointing to `http(s)` URLs and checks them against the background service worker in parallel (bounded concurrency), decorating each link based on the result (`markLink`).
-   - Intercepts click events (capture phase) on links: anything not already verified `clean` or allow-listed is blocked from navigating until a check resolves — this includes links still being auto-scanned, so a click can never race past an in-progress check.
+   - Scans `<a href>` elements inside message bodies (`.a3s`) that point to external `http(s)` URLs, checks them against the background service worker in parallel (bounded concurrency), and decorates each link based on the result (`markLink`). Links back into Gmail itself are left alone.
+   - Keeps each verdict in a private `WeakMap` together with the exact `href` it was for, so email HTML can't forge a verdict and a changed `href` counts as unchecked.
+   - Intercepts `click` and middle-button `auxclick` events (capture phase) on every external link: anything not verified `clean` or allow-listed for its current `href` is blocked from navigating until a check resolves — this includes links still being auto-scanned, so a click can never race past an in-progress check.
    - De-dupes concurrent checks for the same URL locally (`pendingChecks`) and enforces a local 30s timeout as a fail-safe in case the background worker never responds.
    - Shows a `confirm()` dialog before navigating to anything malicious, suspicious, or unverifiable; opens links via `window.open(href, '_blank', 'noopener,noreferrer')` to avoid handing a potentially malicious destination a reference back to the Gmail tab.
-   - Uses a `MutationObserver` on `document.body` to catch links that load asynchronously as you navigate between emails.
+   - Uses a `MutationObserver` on `document.body` to catch links that load asynchronously as you navigate between emails, and `href` changes on existing links.
 
 2. **`background.js`** (Manifest V3 service worker)
    - Receives `checkUrl` messages from the content script.
-   - Unwraps common redirect-wrapper URLs (Gmail/Google's `url?q=...` and generic `url=`/`u=`/`redirect=`/etc. query params, up to 3 hops) to find the real destination before doing anything else.
-   - Checks the resolved host against your allow/deny lists first — allowed domains skip VirusTotal entirely, denied domains are flagged immediately without an API call.
-   - Otherwise looks up the resolved URL in a local cache (`chrome.storage.local`, 24h TTL for verdicts / 5min TTL for retryable errors) before making any network calls, and de-dupes concurrent in-flight requests for the same URL.
-   - If not cached, submits the URL to VirusTotal's `POST /api/v3/urls` endpoint to trigger an analysis, then polls `GET /api/v3/analyses/{id}` (up to 10 attempts, 1.5s apart) until the scan completes.
-   - If polling times out, it falls back to fetching the URL object directly (`GET /api/v3/urls/{id}`, using proper unpadded base64url encoding) and uses `last_analysis_stats`.
-   - Returns a normalized result: `{ ok, malicious, suspicious, maliciousCount, suspiciousCount, resolvedUrl, listed? }`.
+   - Unwraps common redirect-wrapper URLs (Gmail/Google's `url?q=...` and generic `url=`/`u=`/`redirect=`/etc. query params, up to 3 hops) into a chain from the clicked URL to the final destination. A chain deeper than 3 hops can't be verified and gets a warning.
+   - Checks every host in the chain (except the trusted `google.com/url` wrapper) against your deny list, then your allow list: any denied host blocks the link; addresses on allowed domains aren't sent to VirusTotal; only if every address is allowed is the link treated as allow-listed.
+   - Looks up each remaining address, one after another, in a local cache (`chrome.storage.local`, 24h TTL for verdicts / 5min TTL for retryable errors) before making any network calls, and de-dupes concurrent in-flight requests for the same URL.
+   - If not cached, submits the address to VirusTotal's `POST /api/v3/urls` endpoint to trigger an analysis, then polls `GET /api/v3/analyses/{id}` (up to 10 attempts, 1.5s apart) until the scan completes.
+   - If polling times out, it falls back to fetching the URL object directly (`GET /api/v3/urls/{id}`, using unpadded base64url of the URL's UTF-8 bytes) and uses `last_analysis_stats`.
+   - Combines the results into the worst verdict; any lookup error fails the whole check (it never counts as clean).
+   - Returns a normalized result: `{ ok, malicious, suspicious, maliciousCount, suspiciousCount, resolvedUrl, flaggedUrl?, listed? }`, where `flaggedUrl` is the address in the chain that was flagged.
    - Opportunistically prunes expired cache entries on writes, and on install/startup, so `chrome.storage.local` doesn't grow unbounded.
 
 3. **`options.html` / `options.js`**
@@ -54,8 +57,8 @@ The extension has three main parts:
 
 1. Get a free API key from [VirusTotal](https://www.virustotal.com/gui/join-us).
 2. Clone or download this repository.
-3. Open `chrome://extensions` in Chrome.
-4. Enable **Developer mode** (top-right toggle).
+3. Open `chrome://extensions` in Chrome (or `edge://extensions` in Microsoft Edge).
+4. Enable **Developer mode** (top-right toggle in Chrome, left sidebar in Edge).
 5. Click **Load unpacked** and select the project folder.
 6. Click **Details → Extension options** (or right-click the extension icon → **Options**) and paste your VirusTotal API key. Optionally add allow/deny domains, then click **Save**.
 7. Open Gmail — links in your messages will start being scanned automatically.
@@ -82,7 +85,9 @@ The content script is declared statically in the manifest and the extension neve
 - **Rate limits**: VirusTotal's free API tier has strict rate limits (4 requests/minute, 500/day). Caching and request de-duplication help, but a message with many uncached links can still hit limits — those get a "could not verify" warning rather than a silent pass-through.
 - **Client-side API key**: The API key lives in the browser and is sent directly to VirusTotal from the extension. For team/production use, consider routing requests through a server-side proxy to avoid exposing the key and to centralize rate-limit handling.
 - **Polling delay**: New/unseen URLs may take a few seconds to analyze (up to `10 attempts × 1.5s`) before a verdict is available; navigation is blocked until that check resolves or times out (30s local fail-safe).
-- **Redirect unwrapping is heuristic**: only wrapper styles that embed the destination URL in a query parameter (Google's `url?q=...`, and generic `url=`/`u=`/`redirect=`/etc.) can be unwrapped client-side. Path-based shorteners (e.g. `bit.ly/abc`) require following an HTTP redirect and aren't unwrapped.
+- **Redirect unwrapping is heuristic**: only wrapper styles that embed the destination URL in a query parameter (Google's `url?q=...`, and generic `url=`/`u=`/`redirect=`/etc.) can be unwrapped client-side. Path-based shorteners (e.g. `bit.ly/abc`) require following an HTTP redirect and aren't unwrapped (the shortener URL itself is still scanned). Because wrapper URLs are scanned as well as their destinations, a tracking link costs two lookups instead of one.
+- **Not every way of opening a link can be intercepted**: right-click → *Open link in new tab* and dragging a link onto the tab bar bypass page events entirely, so those links open without a check. Use a normal click or middle-click.
+- **Message body detection relies on Gmail's markup**: scanning on load looks for Gmail's message body class (`.a3s`). If Gmail changes it, links are no longer scanned on load, but they are still checked when clicked.
 
 ## Privacy & security
 
