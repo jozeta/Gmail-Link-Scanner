@@ -84,5 +84,5 @@ npm ci && npm run lint   # ESLint (dev-only), incl. the no-unsanitized rule; CI 
 node --test tests/ && node tests/run-content-tests.js # the tests CI runs
 ```
 
-Unsafe DOM sinks and unused variables are lint **warnings** for now (existing code); new code
-shouldn't add any. Errors (eval, undefined names, parse errors) fail CI.
+Unsafe DOM sinks (`innerHTML` and friends with unescaped data) are lint errors and fail CI, like
+eval, undefined names and parse errors.
