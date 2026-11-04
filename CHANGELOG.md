@@ -6,6 +6,9 @@ Releases follow the project's git tags. The 1.1.0 entry was reconstructed from t
 
 ## [Unreleased]
 
+- ESLint (flat config, with the no-unsanitized rule) as a dev-only tool; CI runs `npm run lint`
+- CI workflow: lint and the existing tests on every push
+
 ## [1.2.0] - 2026-11-02
 
 ### Added

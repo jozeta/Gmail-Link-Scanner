@@ -73,3 +73,16 @@ would pick them up).
 - Never log or hard-code an API key. Never send link data anywhere except VirusTotal.
 - Untrusted input (link text, URLs, imported files) is only ever rendered with `textContent`.
 - Bump `version` in `manifest.json` for releases.
+
+## App standards
+
+This repo follows the app standards in `~/Desktop/code/tools/standards/STANDARDS.md` (rule IDs,
+severities; decisions and waivers in `.claude-standards`). `claude-check --repo .` checks it.
+
+```sh
+npm ci && npm run lint   # ESLint (dev-only), incl. the no-unsanitized rule; CI runs it too
+node --test tests/ && node tests/run-content-tests.js # the tests CI runs
+```
+
+Unsafe DOM sinks and unused variables are lint **warnings** for now (existing code); new code
+shouldn't add any. Errors (eval, undefined names, parse errors) fail CI.
