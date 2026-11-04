@@ -21,6 +21,7 @@ jobs:
       - name: Lint (ESLint, including the unsafe-DOM rule)
         run: npm run lint
       - name: Unit tests (background logic, heuristics, domain lists)
-        run: node --test tests/
+        # Node 22 needs files or a glob here, not a folder.
+        run: node --test "tests/*.test.js"
       - name: Content-script tests (headless Chrome)
         run: BROWSER="$(command -v google-chrome || command -v chromium)" node tests/run-content-tests.js
