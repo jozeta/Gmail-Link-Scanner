@@ -330,6 +330,7 @@ const panel = (() => {
     .spinner { display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px;
       border: 2px solid #b8c2cc; border-top-color: #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
     @media (prefers-color-scheme: dark) {
       .dialog { background: #20262c; color: #e6eaee; }
       dt { color: #9aa7b3; }

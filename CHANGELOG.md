@@ -6,6 +6,7 @@ Releases follow the project's git tags. The 1.1.0 entry was reconstructed from t
 
 ## [Unreleased]
 
+- The scan spinner turns slowly when "Reduce motion" is on
 - ESLint (flat config, with the no-unsanitized rule) as a dev-only tool; CI runs `npm run lint`
 - CI workflow: lint and the existing tests on every push
 
