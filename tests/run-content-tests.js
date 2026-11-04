@@ -38,15 +38,20 @@ async function main() {
   const browser = spawn(findBrowser(), [
     '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     `--user-data-dir=${profile}`, '--allow-file-access-from-files', '--window-size=1000,700',
-    '--remote-debugging-port=0', 'about:blank'
-  ], {stdio: 'ignore'});
+    '--remote-debugging-port=0',
+    // CI containers on Linux have no user namespaces for Chrome's sandbox.
+    ...(process.platform === 'linux' && process.env.CI ? ['--no-sandbox'] : []),
+    'about:blank'
+  ], {stdio: ['ignore', 'ignore', 'pipe']});
+  let browserErr = '';
+  browser.stderr.on('data', (d) => { browserErr += d; });
 
   try {
     // The browser writes its debugging port to DevToolsActivePort.
     const portFile = path.join(profile, 'DevToolsActivePort');
     const started = Date.now();
     while (!fs.existsSync(portFile) || !fs.readFileSync(portFile, 'utf8').includes('\n')) {
-      if (Date.now() - started > 15000) throw new Error('Browser did not start');
+      if (Date.now() - started > 30000) throw new Error('Browser did not start:\n' + browserErr.slice(-2000));
       await sleep(100);
     }
     const port = fs.readFileSync(portFile, 'utf8').split('\n')[0].trim();
