@@ -74,17 +74,25 @@ async function main() {
     const port = fs.readFileSync(portFile, 'utf8').split('\n')[0].trim();
     const list = async () => (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
 
-    // Edge runs built-in extensions too; ours is the one with background.js.
+    // Edge runs built-in extensions too, and some of them also have a
+    // background.js service worker, so pick ours by its manifest name.
+    const ourName = require('../manifest.json').name;
     let worker = null;
+    let sw = null;
     for (let i = 0; i < 50 && !worker; i++) {
-      worker = (await list()).find((t) => t.type === 'service_worker' && t.url.startsWith('chrome-extension://') && t.url.endsWith('/background.js'));
+      const candidates = (await list()).filter((t) => t.type === 'service_worker' && t.url.startsWith('chrome-extension://') && t.url.endsWith('/background.js'));
+      for (const t of candidates) {
+        const s = await connect(t.webSocketDebuggerUrl);
+        const name = await s.evaluate('chrome.runtime.getManifest().name').catch(() => null);
+        if (name === ourName) { worker = t; sw = s; break; }
+        s.close();
+      }
       if (!worker) await sleep(200);
     }
     check('the extension loads and its service worker starts', worker);
     if (!worker) return;
     const id = new URL(worker.url).host;
 
-    const sw = await connect(worker.webSocketDebuggerUrl);
     await sw.send('Runtime.enable');
     const limiter = await sw.evaluate('loadLimiterState().then(() => ({stamps: windowStamps.length, quota}))');
     check('limiter state loads from storage.session/local', limiter && typeof limiter.quota.count === 'number', limiter);

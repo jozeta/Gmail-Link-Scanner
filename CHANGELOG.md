@@ -6,7 +6,7 @@ Releases follow the project's git tags. The 1.1.0 entry was reconstructed from t
 
 ## [Unreleased]
 
-## [Unreleased]
+- Extension smoke test: finds our service worker by its manifest name (Edge has a built-in extension that also runs a `background.js`, and the test was probing that one)
 
 ## [1.2.1] - 2026-11-12
 
