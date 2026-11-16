@@ -2,17 +2,25 @@
 
 A Chromium extension (Manifest V3, works in Chrome and Microsoft Edge) that checks the links inside your Gmail messages against [VirusTotal](https://www.virustotal.com/) and local phishing heuristics, and warns you before you open anything dangerous.
 
+**Version 1.2.1** (from `manifest.json`; also shown in the toolbar popup)
+
+## What's new in 1.2.1
+
+- The toolbar popup shows its version number.
+- The scan spinner turns slowly when "Reduce motion" is on.
+- ESLint (dev-only) and a CI workflow that runs lint and the tests on every push.
+
+Older changes are in [CHANGELOG.md](CHANGELOG.md).
+
 ## Screenshots
 
-![Warning panel over a phishing email: "Dangerous link", with the VirusTotal counts, a note that the link text shows www.paypal.com but goes elsewhere, and Open anyway / Cancel buttons](docs/screenshots/warning-panel.png)
-
-*The warning panel shown when you click a flagged link (demo email with made-up `.example` domains).*
-
-| Toolbar popup | Settings |
-|---|---|
-| ![Popup showing today's VirusTotal request budget, the flagged links in the open email, and recent checks](docs/screenshots/popup.png) | ![Settings page: API key with a Test key button, scan mode, request limits, allowed and blocked domains with export/import](docs/screenshots/options.png) |
-
-*Popup and settings, with demo data. Both follow the system light/dark theme.*
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/warning-panel.png" alt="Warning panel over a phishing email: &quot;Dangerous link&quot;, with the VirusTotal counts, a note that the link text shows www.paypal.com but goes elsewhere, and Open anyway / Cancel buttons" width="300"><br>The warning panel shown when you click a flagged link (demo email with made-up <code>.example</code> domains)</td>
+    <td align="center"><img src="docs/screenshots/popup.png" alt="Popup showing today's VirusTotal request budget, the flagged links in the open email, and recent checks" width="300"><br>Toolbar popup: request budget, flagged links and recent checks (demo data)</td>
+    <td align="center"><img src="docs/screenshots/options.png" alt="Settings page: API key with a Test key button, scan mode, request limits, allowed and blocked domains with export/import" width="300"><br>Settings page, with demo data; popup and settings follow the system light/dark theme</td>
+  </tr>
+</table>
 
 ## Description
 

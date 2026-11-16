@@ -3,6 +3,9 @@
 
 const $ = (id) => document.getElementById(id);
 
+// The version comes from manifest.json, the one place it is set.
+$('version').textContent = `v${chrome.runtime.getManifest().version}`;
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;

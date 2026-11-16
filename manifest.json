@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Gmail Link Scanner (VirusTotal)",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Scans links in Gmail via VirusTotal and warns users before navigating to malicious sites.",
   "permissions": [
     "storage"

@@ -6,6 +6,12 @@ Releases follow the project's git tags. The 1.1.0 entry was reconstructed from t
 
 ## [Unreleased]
 
+## [Unreleased]
+
+## [1.2.1] - 2026-11-12
+
+- The toolbar popup shows its version (read from `manifest.json`)
+- README: current version, "What's new" and the screenshots as a captioned grid
 - The scan spinner turns slowly when "Reduce motion" is on
 - ESLint (flat config, with the no-unsanitized rule) as a dev-only tool; CI runs `npm run lint`
 - CI workflow: lint and the existing tests on every push

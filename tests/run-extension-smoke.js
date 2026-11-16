@@ -118,6 +118,7 @@ async function main() {
     check('popup: no errors', popup.errors().length === 0, popup.errors());
     const text = await popup.evaluate('document.body.innerText');
     check('popup: shows the request budget', /Today: 0 \/ 500/.test(text), text.slice(0, 200));
+    check('popup: shows the manifest version', text.includes('v' + require('../manifest.json').version), text.slice(0, 80));
     check('popup: explains when the tab is not Gmail', /Open Gmail in this tab/.test(text));
     popup.close();
     sw.close();
